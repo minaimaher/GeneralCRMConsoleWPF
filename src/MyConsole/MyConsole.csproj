@@ -196,6 +196,7 @@
     <Compile Include="Helpers\CRMConnector.cs" />
     <Compile Include="Helpers\CRMHelper.cs" />
     <Compile Include="Helpers\RestAPIHandler.cs" />
+    <Compile Include="Helpers\RunInputs.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

@@ -16,6 +16,12 @@ namespace MyConsole.Helpers
     {
         public static IOrganizationService ConnectToCRM()
         {
+            // A host such as the WPF Function Runner supplies its own signed-in connection.
+            if (RunInputs.Connect != null)
+            {
+                return RunInputs.Connect();
+            }
+
             string serviceUrl = ConfigurationManager.AppSettings["ServiceUrl"];
             string envUrl = ConfigurationManager.AppSettings["EnvUrl"].ToString();
             string userName = ConfigurationManager.AppSettings["UserName"].ToString();

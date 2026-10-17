@@ -18,6 +18,10 @@ namespace MyConsole.Helpers
     {
         public static IOrganizationService ConnectToCRM()
         {
+            if (RunInputs.Connect != null)
+            {
+                return RunInputs.Connect();
+            }
             try
             {
                 ClientCredentials clientCredentials = new ClientCredentials();

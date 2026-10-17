@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Data files with record IDs and run evidence stay out of the repository
+*.xlsx
+Runs/
+*trace.txt

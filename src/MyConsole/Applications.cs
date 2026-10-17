@@ -52,7 +52,7 @@ namespace MyConsole
 {
     internal class Applications
     {
-        public static void CloseJanaLoans(IOrganizationService service)
+        public static void CloseJanaLoans(IOrganizationService service, IEnumerable<string> nationalIds = null)
         {
             //get loan ids
             List<string> ids = new List<string>();
@@ -74,6 +74,7 @@ namespace MyConsole
             ids.Add("1041870146");
             ids.Add("1095918353");
             ids.Add("1042002475");
+            ids = RunInputs.Or(nationalIds, ids);
 
             for (int i = 0; i < ids.Count; i++)
             {
@@ -129,8 +130,8 @@ namespace MyConsole
 
             //get contact ids
             List<List<string>> ids = GetIdsFromExcel("Ids.xlsx");
-            var SkipValue = int.Parse(System.Configuration.ConfigurationManager.AppSettings["Skip"]);
-            var TakeValue = int.Parse(System.Configuration.ConfigurationManager.AppSettings["Take"]);
+            var SkipValue = RunInputs.SkipOr(System.Configuration.ConfigurationManager.AppSettings["Skip"]);
+            var TakeValue = RunInputs.TakeOr(System.Configuration.ConfigurationManager.AppSettings["Take"]);
             var contactsIds = ids[0].Skip(SkipValue).Take(TakeValue).ToList();
             var dates = ids[1].Skip(SkipValue).Take(TakeValue).ToList();
             for (int i = 0; i < contactsIds.Count; i++)
@@ -266,7 +267,7 @@ namespace MyConsole
             int takenum4 = baseNum / 4 + mod;
             Console.WriteLine(skipnum4 + " : " + takenum4);
         }
-        public static void SettleLoans(IOrganizationService service)
+        public static void SettleLoans(IOrganizationService service, IEnumerable<Guid> loanIdsToSettle = null)
         {
             List<Guid> loanIds = new List<Guid>();
             bool isAhyaaLoan = true;
@@ -278,6 +279,7 @@ namespace MyConsole
             //}
 
             loanIds.Add(new Guid("d279c866-dfd0-ee11-b857-00505692a571"));
+            loanIds = RunInputs.Or(loanIdsToSettle, loanIds);
             
             int loanCount = 0;
             var FilteredloanIds = new List<Guid>();
@@ -601,9 +603,10 @@ namespace MyConsole
                 if (loanCount%10 == 0)
                 {
                     //Reset Token
-                    Console.WriteLine("Reset token : " + ((OrganizationServiceProxy)service).SecurityTokenResponse.Token);
+                    Console.WriteLine("Reset token : " + (service as OrganizationServiceProxy)?.SecurityTokenResponse?.Token);
                     service = null;
-                    service = CRMHelper.ConnectToCRM();
+                    // Reconnect with the App.config credentials (CRMHelper.ConnectToCRM has placeholder credentials).
+                    service = CRMConnector.ConnectToCRM();
                 }
             }
         }
@@ -818,7 +821,7 @@ namespace MyConsole
             //This will strip just the working path name:
             //C:\Program Files\MyApplication
             string strWorkPath = System.IO.Path.GetDirectoryName(strExeFilePath);
-            string fullPathToExcel = System.IO.Path.Combine(strWorkPath, fileName);
+            string fullPathToExcel = string.IsNullOrEmpty(RunInputs.ExcelPath) ? System.IO.Path.Combine(strWorkPath, fileName) : RunInputs.ExcelPath;
             //string connString = string.Format("Provider=Microsoft.ACE.OLEDB.12.0;Data Source={0};Extended Properties='Excel 12.0;HDR=yes'", fullPathToExcel);
             DataTable dt = ReadExcelFiles(fullPathToExcel);
             List<string> ids1 = new List<string>();
@@ -875,6 +878,16 @@ namespace MyConsole
             List<List<string>> ids = new List<List<string>>();
 
             ids.Add(ids1);
+            // Columns 2 onwards, for functions that read ids[1], ids[2] … (RenewLicense, UpdateLoanRequests, UpdateContactWithDOB …)
+            for (int col = 1; col < dt.Columns.Count; col++)
+            {
+                List<string> column = new List<string>();
+                foreach (DataRow dr in dt.Rows)
+                {
+                    column.Add(dr[col].ToString());
+                }
+                ids.Add(column);
+            }
             //ids.Add(ids2);
             //ids.Add(ids3);
             //ids.Add(ids4);
@@ -972,19 +985,25 @@ namespace MyConsole
             //}
 
         }
-        public static void DeleteBPFRecords(IOrganizationService service)
+        public static void DeleteBPFRecords(IOrganizationService service, Guid? caseId = null)
         {
             //retrieve associated records for specific bpf record
 
             var fetch = @"<fetch version='1.0' output-format='xml-platform' mapping='logical' distinct='false'>
                           <entity name='new_bpf_7013d7c4826745e182fabb09ef464219'>
                             <filter type='and'>
-                              <condition attribute='bpf_incidentid' operator='eq'  value='9e88ae11-c80e-f011-b87b-00505692a571' />
+                              <condition attribute='bpf_incidentid' operator='eq'  value='" + (caseId ?? new Guid("9e88ae11-c80e-f011-b87b-00505692a571")) + @"' />
                             </filter>
                           </entity>
                         </fetch>";
 
             var result = service.RetrieveMultiple(new FetchExpression(fetch));
+            if (result.Entities.Count == 0)
+            {
+                Console.WriteLine("No business process flow record found for this case.");
+                return;
+            }
+            Console.WriteLine("Deleting business process flow record " + result[0].Id);
 
             service.Delete("new_bpf_7013d7c4826745e182fabb09ef464219",result[0].Id);
 
@@ -1042,12 +1061,12 @@ namespace MyConsole
                 }
             }
         }
-        public static bool StopDuplicationCase(IOrganizationService service)
+        public static bool StopDuplicationCase(IOrganizationService service, Guid? customerContactId = null, Guid? ownerUserId = null, int? requestSource = null)
         {
             Entity targetEntity = new Entity("incident");
-            targetEntity.Attributes["ntw_newcustomer"] = new EntityReference("contact", new Guid("59fcffec-009c-ef11-b86d-00505692a571"));
-            targetEntity.Attributes["ownerid"] = new EntityReference("systemuser", new Guid("ac5f552b-0827-ed11-b82b-00505692a571"));
-            targetEntity.Attributes["ntw_requestsource"] = new OptionSetValue(2);
+            targetEntity.Attributes["ntw_newcustomer"] = new EntityReference("contact", customerContactId ?? new Guid("59fcffec-009c-ef11-b86d-00505692a571"));
+            targetEntity.Attributes["ownerid"] = new EntityReference("systemuser", ownerUserId ?? new Guid("ac5f552b-0827-ed11-b82b-00505692a571"));
+            targetEntity.Attributes["ntw_requestsource"] = new OptionSetValue(requestSource ?? 2);
             try
             {
                 Console.WriteLine("StopDuplicationCase method is hit successfully");
@@ -1484,14 +1503,14 @@ namespace MyConsole
                 Console.WriteLine(Guid.Parse(ids[0][i]) + " # " + (i+1) );
             }
         }
-        public static void UpdateLoanPartner(IOrganizationService service)
+        public static void UpdateLoanPartner(IOrganizationService service, Guid? partnerId = null, Guid? requestStatusId = null)
         {
             List<List<string>> ids = GetIdsFromExcel("Ids.xlsx");
             for (int i = 0; i < ids[0].Count; i++)
             {
-                EntityReference partnerid = new EntityReference("account", new Guid("6fdcba20-9276-f011-913d-005056a50502"));
+                EntityReference partnerid = new EntityReference("account", partnerId ?? new Guid("6fdcba20-9276-f011-913d-005056a50502"));
                 EntityReference requestid = new EntityReference("ntw_productivefamilyloanrequest", new Guid(ids[0][i]));
-                EntityReference statusid = new EntityReference("ntw_requeststatus", new Guid("d80f2cc0-89cc-eb11-baeb-00155d003c17"));
+                EntityReference statusid = new EntityReference("ntw_requeststatus", requestStatusId ?? new Guid("d80f2cc0-89cc-eb11-baeb-00155d003c17"));
 
                 Entity loanRequest = service.Retrieve("ntw_productivefamilyloanrequest", requestid.Id, new ColumnSet("ntw_partnerid"));
                
@@ -1511,9 +1530,9 @@ namespace MyConsole
             }
         }
 
-        public static void TestSMSWithRMQueue(IOrganizationService service)
+        public static void TestSMSWithRMQueue(IOrganizationService service, Guid? messageId = null)
         {
-            Entity rmqEntity = CRMHelper.RetrieveEntityById(service, "ntw_rabbitmqmessages", new Guid("a7f03ab6-df03-f011-b87b-00505692a571"), null, true);
+            Entity rmqEntity = CRMHelper.RetrieveEntityById(service, "ntw_rabbitmqmessages", messageId ?? new Guid("a7f03ab6-df03-f011-b87b-00505692a571"), null, true);
 
             var entityName = rmqEntity.LogicalName;
 
