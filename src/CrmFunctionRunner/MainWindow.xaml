@@ -1,0 +1,387 @@
+<Window x:Class="CrmFunctionRunner.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:i="clr-namespace:CrmFunctionRunner.Infrastructure"
+        Title="{Binding [AppTitle], Source={x:Static i:Loc.Instance}}"
+        FlowDirection="{Binding Direction, Source={x:Static i:Loc.Instance}}"
+        Width="1280" Height="820" MinWidth="980" MinHeight="600" WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI" FontSize="13" Background="{StaticResource Bg}" Foreground="{StaticResource Ink}">
+    <Window.Resources>
+        <i:StepVisibilityConverter x:Key="StepVis" />
+        <i:StepStateBrushConverter x:Key="StepBrush" />
+        <i:BoolVisibilityConverter x:Key="Vis" />
+        <i:BoolVisibilityConverter x:Key="NotVis" Invert="True" />
+        <i:StatusBrushConverter x:Key="StatusBrush" />
+
+        <!-- input editors -->
+        <DataTemplate x:Key="TextInput">
+            <StackPanel Margin="0,0,0,6">
+                <TextBlock Style="{StaticResource Label}" Text="{Binding Label}" />
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Style="{StaticResource Hint}" Text="{Binding Help}" Visibility="{Binding HasHelp, Converter={StaticResource Vis}}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="MultilineInput">
+            <StackPanel Margin="0,0,0,6">
+                <TextBlock Style="{StaticResource Label}" Text="{Binding Label}" />
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap"
+                         MinHeight="90" MaxHeight="260" VerticalScrollBarVisibility="Auto" FontFamily="{StaticResource Mono}" FlowDirection="LeftToRight" />
+                <TextBlock Style="{StaticResource Hint}" Text="{Binding Help}" Visibility="{Binding HasHelp, Converter={StaticResource Vis}}" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="YesNoInput">
+            <CheckBox Margin="0,12,0,6" IsChecked="{Binding BoolValue}" Content="{Binding Label}" />
+        </DataTemplate>
+        <DataTemplate x:Key="ExcelInput">
+            <StackPanel Margin="0,0,0,6">
+                <TextBlock Style="{StaticResource Label}" Text="{Binding Label}" />
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Margin="8,0,0,0" Click="BrowseExcel_Click" Tag="{Binding}"
+                            Content="{Binding [Browse], Source={x:Static i:Loc.Instance}}" />
+                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" FlowDirection="LeftToRight" />
+                </DockPanel>
+                <TextBlock Style="{StaticResource Hint}" Text="{Binding Help}" Visibility="{Binding HasHelp, Converter={StaticResource Vis}}" />
+                <TextBlock Style="{StaticResource Hint}" FontWeight="SemiBold" Text="{Binding PreviewText}" Visibility="{Binding PreviewText, Converter={StaticResource Vis}}" />
+                <DataGrid ItemsSource="{Binding Preview}" Visibility="{Binding Preview, Converter={StaticResource Vis}}" IsReadOnly="True"
+                          AutoGenerateColumns="True" HeadersVisibility="Column" MaxHeight="170" Margin="0,4,0,0" FlowDirection="LeftToRight"
+                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource Line}" BorderBrush="{StaticResource Line}" />
+            </StackPanel>
+        </DataTemplate>
+        <i:InputTemplateSelector x:Key="InputSelector" Text="{StaticResource TextInput}" Multiline="{StaticResource MultilineInput}"
+                                 YesNo="{StaticResource YesNoInput}" Excel="{StaticResource ExcelInput}" />
+
+        <Style x:Key="Badge" TargetType="Border">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="StepText" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,22,0" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- top bar -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="16,10">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border CornerRadius="4" Padding="10,3" Margin="0,0,10,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{StaticResource AccentSoft}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsProduction}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource Crit}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock FontWeight="SemiBold" Text="{Binding EnvironmentName}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsProduction}" Value="True">
+                                            <Setter Property="Foreground" Value="White" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                    <TextBlock Text="{Binding SignedInAs}" VerticalAlignment="Center" Foreground="{StaticResource Muted}" Margin="0,0,12,0" />
+                    <Button Style="{StaticResource Btn}" Padding="8,4" Click="Language_Click" Content="{Binding [Language], Source={x:Static i:Loc.Instance}}" />
+                    <Button Style="{StaticResource Btn}" Padding="8,4" Margin="0" Click="ChangeConnection_Click" IsEnabled="{Binding IsIdle}"
+                            Content="{Binding [ChangeConnection], Source={x:Static i:Loc.Instance}}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{StaticResource Accent}" CornerRadius="4" Width="30" Height="30" Margin="0,0,10,0">
+                        <TextBlock Text="CRM" Foreground="White" FontFamily="{StaticResource Mono}" FontSize="10" FontWeight="Bold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="{Binding [AppTitle], Source={x:Static i:Loc.Instance}}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- production banner -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource Crit}" Padding="16,7" Visibility="{Binding IsProduction, Converter={StaticResource Vis}}">
+            <TextBlock Foreground="White" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding [ProductionBanner], Source={x:Static i:Loc.Instance}}" />
+        </Border>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- function catalog -->
+            <Border Grid.Column="0" Background="{StaticResource Sunk}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
+                <DockPanel IsEnabled="{Binding IsIdle}">
+                    <StackPanel DockPanel.Dock="Top" Margin="12,12,12,6">
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,4" Text="{Binding [Search], Source={x:Static i:Loc.Instance}}" />
+                        <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" Background="{StaticResource Panel}" />
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding Functions}" SelectedItem="{Binding Selected}" BorderThickness="0" Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" Padding="6,0,6,12">
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource SectionTitle}" Margin="6,14,6,4" />
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="8,7" />
+                                <Setter Property="Margin" Value="0,1" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                    <DockPanel Margin="0,3,0,0">
+                                        <Border DockPanel.Dock="Right" Style="{StaticResource Badge}" Background="{Binding Status, Converter={StaticResource StatusBrush}}">
+                                            <TextBlock Text="{Binding StatusText}" Foreground="White" FontSize="11" />
+                                        </Border>
+                                        <TextBlock Text="{Binding Method}" FontFamily="{StaticResource Mono}" FontSize="11" Foreground="{StaticResource Muted}"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FlowDirection="LeftToRight" HorizontalAlignment="Left" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- nothing selected -->
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460"
+                        Visibility="{Binding Step, Converter={StaticResource StepVis}, ConverterParameter=Pick}">
+                <TextBlock Text="{Binding [PickFunction], Source={x:Static i:Loc.Instance}}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource Hint}" FontSize="13" Margin="0,8,0,0" Text="{Binding [PickFunctionHint], Source={x:Static i:Loc.Instance}}" />
+            </StackPanel>
+
+            <!-- selected function -->
+            <DockPanel Grid.Column="1" Margin="20,16,20,16" Visibility="{Binding HasSelection, Converter={StaticResource Vis}}">
+                <!-- header -->
+                <StackPanel DockPanel.Dock="Top">
+                    <TextBlock Text="{Binding Selected.Title}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <WrapPanel Margin="0,6,0,0">
+                        <Border Style="{StaticResource Badge}" Background="{Binding Selected.Status, Converter={StaticResource StatusBrush}}" Margin="0,0,10,0">
+                            <TextBlock Text="{Binding Selected.StatusText}" Foreground="White" FontSize="11" />
+                        </Border>
+                        <TextBlock Foreground="{StaticResource Muted}" Margin="0,0,14,0" Visibility="{Binding HasSop, Converter={StaticResource Vis}}">
+                            <Run Text="{Binding [SopReference], Source={x:Static i:Loc.Instance}, Mode=OneWay}" />: <Run Text="{Binding Selected.SopRef, Mode=OneWay}" FontWeight="SemiBold" />
+                        </TextBlock>
+                        <TextBlock Foreground="{StaticResource Muted}">
+                            <Run Text="{Binding [Method], Source={x:Static i:Loc.Instance}, Mode=OneWay}" />: <Run Text="{Binding Selected.Method, Mode=OneWay}" FontFamily="{StaticResource Mono}" />
+                        </TextBlock>
+                    </WrapPanel>
+                    <!-- stepper -->
+                    <Border Margin="0,14,0,12" Padding="12,8" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="6">
+                        <WrapPanel>
+                            <TextBlock Style="{StaticResource StepText}" Text="{Binding [Step1], Source={x:Static i:Loc.Instance}}" Foreground="{Binding Step, Converter={StaticResource StepBrush}, ConverterParameter=Inputs}" />
+                            <TextBlock Style="{StaticResource StepText}" Text="{Binding [Step2], Source={x:Static i:Loc.Instance}}" Foreground="{Binding Step, Converter={StaticResource StepBrush}, ConverterParameter=DryRun}" />
+                            <TextBlock Style="{StaticResource StepText}" Text="{Binding [Step3], Source={x:Static i:Loc.Instance}}" Foreground="{Binding Step, Converter={StaticResource StepBrush}, ConverterParameter=Confirm}" />
+                            <TextBlock Style="{StaticResource StepText}" Text="{Binding [Step4], Source={x:Static i:Loc.Instance}}" Foreground="{Binding Step, Converter={StaticResource StepBrush}, ConverterParameter=Run}" />
+                            <TextBlock Style="{StaticResource StepText}" Text="{Binding [Step5], Source={x:Static i:Loc.Instance}}" Foreground="{Binding Step, Converter={StaticResource StepBrush}, ConverterParameter=Result}" />
+                        </WrapPanel>
+                    </Border>
+                </StackPanel>
+
+                <Grid>
+                    <!-- STEP 1: inputs -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding Step, Converter={StaticResource StepVis}, ConverterParameter=Inputs}">
+                        <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding Selected.Description}" TextWrapping="Wrap" FontSize="14" />
+                            <Border Margin="0,10,0,0" Padding="10,8" CornerRadius="4" Background="{StaticResource WarnSoft}" Visibility="{Binding HasNote, Converter={StaticResource Vis}}">
+                                <TextBlock Text="{Binding Selected.Note}" TextWrapping="Wrap" Foreground="{StaticResource Warn}" />
+                            </Border>
+                            <Border Margin="0,10,0,0" Padding="10,8" CornerRadius="4" Background="{StaticResource CritSoft}" Visibility="{Binding IsBlocked, Converter={StaticResource Vis}}">
+                                <TextBlock Text="{Binding [NeedsFixBlocked], Source={x:Static i:Loc.Instance}}" TextWrapping="Wrap" Foreground="{StaticResource Crit}" />
+                            </Border>
+                            <Border Margin="0,10,0,0" Padding="10,8" CornerRadius="4" Background="{StaticResource WarnSoft}" Visibility="{Binding CanSkipDry, Converter={StaticResource Vis}}">
+                                <TextBlock Text="{Binding [NoDryRun], Source={x:Static i:Loc.Instance}}" TextWrapping="Wrap" Foreground="{StaticResource Warn}" />
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Margin="0,14,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitle}" Margin="0,0,0,2" Text="{Binding [Inputs], Source={x:Static i:Loc.Instance}}" />
+                                    <StackPanel Visibility="{Binding HasExcelColumns, Converter={StaticResource Vis}}">
+                                        <TextBlock Style="{StaticResource Label}" Text="{Binding [ExcelColumns], Source={x:Static i:Loc.Instance}}" />
+                                        <TextBlock Text="{Binding Selected.ExcelColumns}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource Hint}" Text="{Binding [NoInputs], Source={x:Static i:Loc.Instance}}" Visibility="{Binding HasInputs, Converter={StaticResource NotVis}}" />
+                                    <ItemsControl ItemsSource="{Binding Fields}" ItemTemplateSelector="{StaticResource InputSelector}" />
+
+                                    <TextBlock Style="{StaticResource Label}" Text="{Binding [Ticket], Source={x:Static i:Loc.Instance}}" />
+                                    <TextBox Text="{Binding Ticket, UpdateSourceTrigger=PropertyChanged}" MaxWidth="320" HorizontalAlignment="Left" MinWidth="220" FlowDirection="LeftToRight" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="{Binding [TicketHelp], Source={x:Static i:Loc.Instance}}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Margin="0,12,0,0" Padding="10,8" CornerRadius="4" Background="{StaticResource CritSoft}" Visibility="{Binding HasError, Converter={StaticResource Vis}}">
+                                <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{StaticResource Crit}" />
+                            </Border>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
+                                <Button Style="{StaticResource PrimaryBtn}" Click="DryRun_Click" Visibility="{Binding CanRunDry, Converter={StaticResource Vis}}"
+                                        Content="{Binding [RunDryRun], Source={x:Static i:Loc.Instance}}" />
+                                <Button Style="{StaticResource PrimaryBtn}" Click="Confirm_Click" Visibility="{Binding CanSkipDry, Converter={StaticResource Vis}}"
+                                        Content="{Binding [ContinueNoDryRun], Source={x:Static i:Loc.Instance}}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding [DryRunExplain], Source={x:Static i:Loc.Instance}}" Visibility="{Binding CanRunDry, Converter={StaticResource Vis}}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- STEP 3: confirm -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding Step, Converter={StaticResource StepVis}, ConverterParameter=Confirm}">
+                        <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding [ConfirmTitle], Source={x:Static i:Loc.Instance}}" FontSize="16" FontWeight="SemiBold" />
+                                    <TextBox Margin="0,10,0,0" IsReadOnly="True" Text="{Binding ConfirmSummary, Mode=OneWay}" TextWrapping="Wrap"
+                                             FontFamily="{StaticResource Mono}" Background="{StaticResource Sunk}" BorderThickness="0" Padding="10" />
+
+                                    <TextBlock Style="{StaticResource Label}" Text="{Binding [Approver], Source={x:Static i:Loc.Instance}}" />
+                                    <TextBox Text="{Binding Approver, UpdateSourceTrigger=PropertyChanged}" MaxWidth="380" HorizontalAlignment="Left" MinWidth="260" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="{Binding [ApproverHelp], Source={x:Static i:Loc.Instance}}" />
+
+                                    <CheckBox Margin="0,14,0,0" IsChecked="{Binding Reviewed}" Visibility="{Binding HasDryRun, Converter={StaticResource Vis}}">
+                                        <TextBlock TextWrapping="Wrap" Text="{Binding [ReviewedCheck], Source={x:Static i:Loc.Instance}}" />
+                                    </CheckBox>
+                                    <CheckBox Margin="0,10,0,0" IsChecked="{Binding ExternalAck}" Visibility="{Binding NeedsExternalAck, Converter={StaticResource Vis}}">
+                                        <TextBlock TextWrapping="Wrap" Text="{Binding [ExternalCheck], Source={x:Static i:Loc.Instance}}" />
+                                    </CheckBox>
+
+                                    <StackPanel Visibility="{Binding NeedsTypedConfirm, Converter={StaticResource Vis}}">
+                                        <TextBlock Style="{StaticResource Label}" Foreground="{StaticResource Crit}" Text="{Binding ConfirmPrompt}" />
+                                        <TextBox Text="{Binding ConfirmText, UpdateSourceTrigger=PropertyChanged}" Width="160" HorizontalAlignment="Left" FlowDirection="LeftToRight" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                                <Button Style="{StaticResource DangerBtn}" Click="RunLive_Click" IsEnabled="{Binding CanRunLive}" Content="{Binding RunButtonText}" />
+                                <Button Style="{StaticResource Btn}" Click="Back_Click" Content="{Binding [Back], Source={x:Static i:Loc.Instance}}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- STEPS 2, 4, 5: output -->
+                    <Grid Visibility="{Binding Step, Converter={StaticResource StepVis}, ConverterParameter='DryRun,Run,Result'}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="3*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="2*" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                            <!-- running -->
+                            <DockPanel Visibility="{Binding IsBusy, Converter={StaticResource Vis}}">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Margin="0" Click="Stop_Click" Content="{Binding [Stop], Source={x:Static i:Loc.Instance}}" />
+                                <ProgressBar IsIndeterminate="True" Width="120" Height="6" Margin="0,0,12,0" VerticalAlignment="Center" />
+                                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{Binding [Running], Source={x:Static i:Loc.Instance}}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Step}" Value="DryRun">
+                                                    <Setter Property="Text" Value="{Binding [DryRunning], Source={x:Static i:Loc.Instance}}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DockPanel>
+
+                            <!-- dry run finished -->
+                            <StackPanel Visibility="{Binding HasDryRun, Converter={StaticResource Vis}}">
+                                <StackPanel Visibility="{Binding Step, Converter={StaticResource StepVis}, ConverterParameter=DryRun}">
+                                    <TextBlock FontSize="15" FontWeight="SemiBold" Text="{Binding DryRunSummary}" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <Button Style="{StaticResource PrimaryBtn}" Click="Confirm_Click" Content="{Binding [ContinueConfirm], Source={x:Static i:Loc.Instance}}" />
+                                        <Button Style="{StaticResource Btn}" Click="Back_Click" Content="{Binding [Back], Source={x:Static i:Loc.Instance}}" />
+                                        <Button Style="{StaticResource Btn}" Click="OpenFolder_Click" Content="{Binding [OpenFolder], Source={x:Static i:Loc.Instance}}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- result -->
+                            <StackPanel Visibility="{Binding Step, Converter={StaticResource StepVis}, ConverterParameter=Result}">
+                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding ResultTitle}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource Crit}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ResultSucceeded}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource Ok}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Margin="0,4,0,0" Text="{Binding ResultCounts}" />
+                                <Border Margin="0,8,0,0" Padding="10,8" CornerRadius="4" Background="{StaticResource AccentSoft}" Visibility="{Binding HasResultValue, Converter={StaticResource Vis}}">
+                                    <TextBlock Text="{Binding ResultValue}" TextWrapping="Wrap" />
+                                </Border>
+                                <Border Margin="0,8,0,0" Padding="10,8" CornerRadius="4" Background="{StaticResource CritSoft}" Visibility="{Binding HasResultError, Converter={StaticResource Vis}}">
+                                    <TextBlock Text="{Binding ResultError}" TextWrapping="Wrap" Foreground="{StaticResource Crit}" />
+                                </Border>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0">
+                                    <Run Text="{Binding [EvidenceFolder], Source={x:Static i:Loc.Instance}, Mode=OneWay}" />: <Run Text="{Binding EvidenceFolder, Mode=OneWay}" />
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Button Style="{StaticResource PrimaryBtn}" Click="CopyClosure_Click" Content="{Binding [CopyClosure], Source={x:Static i:Loc.Instance}}" />
+                                    <Button Style="{StaticResource Btn}" Click="OpenFolder_Click" Content="{Binding [OpenFolder], Source={x:Static i:Loc.Instance}}" />
+                                    <Button Style="{StaticResource Btn}" Click="StartAgain_Click" Content="{Binding [StartAgain], Source={x:Static i:Loc.Instance}}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Border Margin="0,8,0,0" Padding="10,8" CornerRadius="4" Background="{StaticResource CritSoft}" Visibility="{Binding HasError, Converter={StaticResource Vis}}">
+                                <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{StaticResource Crit}" />
+                            </Border>
+                        </StackPanel>
+
+                        <!-- changes -->
+                        <DockPanel Grid.Row="1">
+                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionTitle}" Margin="0,0,0,4">
+                                <Run Text="{Binding [Changes], Source={x:Static i:Loc.Instance}, Mode=OneWay}" /> (<Run Text="{Binding ChangeCountText, Mode=OneWay}" />)
+                            </TextBlock>
+                            <DataGrid ItemsSource="{Binding Changes}" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                                      CanUserAddRows="False" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource Line}"
+                                      BorderBrush="{StaticResource Line}" Background="{StaticResource Panel}" EnableRowVirtualization="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="#" Binding="{Binding Seq}" Width="50" />
+                                    <DataGridTemplateColumn Header="{Binding [Col.Status], Source={x:Static i:Loc.Instance}}" Width="80">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StatusText}" Foreground="{Binding Status, Converter={StaticResource StatusBrush}}" FontWeight="SemiBold" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="{Binding [Col.Op], Source={x:Static i:Loc.Instance}}" Binding="{Binding Operation}" Width="100" />
+                                    <DataGridTextColumn Header="{Binding [Col.Entity], Source={x:Static i:Loc.Instance}}" Binding="{Binding Entity}" Width="150" />
+                                    <DataGridTextColumn Header="{Binding [Col.Record], Source={x:Static i:Loc.Instance}}" Binding="{Binding RecordId}" Width="260" FontFamily="Consolas" />
+                                    <DataGridTextColumn Header="{Binding [Col.Field], Source={x:Static i:Loc.Instance}}" Binding="{Binding Field}" Width="170" />
+                                    <DataGridTextColumn Header="{Binding [Col.Before], Source={x:Static i:Loc.Instance}}" Binding="{Binding Before}" Width="*" MinWidth="120" />
+                                    <DataGridTextColumn Header="{Binding [Col.After], Source={x:Static i:Loc.Instance}}" Binding="{Binding After}" Width="*" MinWidth="120" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource SectionTitle}" Margin="0,10,0,4" Text="{Binding [Log], Source={x:Static i:Loc.Instance}}" />
+                        <TextBox Grid.Row="3" x:Name="LogBox" IsReadOnly="True" Text="{Binding LogText, Mode=OneWay}" FontFamily="{StaticResource Mono}" FontSize="12"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Background="#0F1A24" Foreground="#DCE6EE"
+                                 BorderThickness="0" Padding="8" FlowDirection="LeftToRight" TextChanged="LogBox_TextChanged" />
+                    </Grid>
+                </Grid>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>
