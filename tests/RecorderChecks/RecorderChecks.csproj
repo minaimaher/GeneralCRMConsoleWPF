@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><Nullable>disable</Nullable><NoWarn>NU1701;CS8632</NoWarn></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/CrmFunctionRunner/Engine/RecordingOrganizationService.cs" />
+    <Compile Include="../../src/CrmFunctionRunner/Engine/Evidence.cs" />
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.52" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+  </ItemGroup>
+</Project>
